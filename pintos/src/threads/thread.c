@@ -76,24 +76,35 @@ static tid_t allocate_tid (void);
 
 void thread_sleep(int64_t ticks)
 {
-   printf("thread_sleep start\n");
+  // printf("thread_sleep start\n");
    enum intr_level old_level = intr_disable();
-   printf("thread_sleep 1\n");
+   //printf("thread_sleep 1\n");
 
    struct thread* t;
-   printf("thread_sleep 2\n");
+   struct thread* t2;
+   struct list_elem* temp_elem;
+   //printf("thread_sleep 2\n");
    t = thread_current();
-   printf("thread_sleep 3\n");
-   list_get(&(t->elem));
-   printf("thread_sleep 4\n");
-   list_push_front(&wait_list,&(t->elem));
-   printf("thread_sleep 5\n");
+
+   //printf("thread_sleep 3\n");
+   //list_get(&(t->elem));
+   //temp_elem = list_pop_front (&ready_list);
+   
+   //printf("thread_sleep 4\n");
+
+   list_push_front(&wait_list,&t->elem);
+   //t2 = list_entry (temp_elem, struct thread, elem);
+   //ASSERT(t == t2);
+   //printf("thread_sleep 5\n");
    t->start = 0;
-   printf("thread_sleep 6\n");
+   //printf("thread_sleep 6\n");
    t->end = ticks;
-   printf("thread_sleep 7\n");
+   //printf("thread_sleep 7\n");
+
+   t->status = THREAD_BLOCKED;
+   schedule();
    intr_set_level(old_level);
-   printf("thread_sleep end\n");
+   //printf("thread_sleep end\n");
 }
 
 
@@ -103,7 +114,7 @@ void thread_sleep(int64_t ticks)
 
 
 /* Initializes the threading system by transforming the code
-   that's currently running into a thread.  This can not work in
+   that's currently running into a tahread.  This can not work in
    general and it is possible in this case only because loader.S
    was careful to put the bottom of the stack at a page boundary.
 
@@ -154,6 +165,7 @@ thread_start (void)
 void
 thread_tick (void) 
 {
+ASSERT (intr_get_level () == INTR_OFF);
   struct thread *t = thread_current ();
 
   /* Update statistics. */
@@ -166,17 +178,25 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  ASSERT (intr_get_level () == INTR_OFF);
+
+  
   struct list_elem *p;
-  for(p = list_begin(&wait_list);p != list_end(&wait_list); p = list_next(p))
+  //printf("a");
+//  printf("tick!! %d  %d\n",list_begin(&wait_list), list_end(&wait_list));
+  for(p = list_begin(&wait_list);p != list_end(&wait_list);p = list_next(p))
   {
+
      t = list_entry(p,struct thread, elem);
      t->start++;
+
 
      if(t->start == t->end)
      {
          list_get(p);
          list_push_back(&ready_list,p);
+         t->status = THREAD_RUNNING;
+	 break;
+
      }
 
   }
