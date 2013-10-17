@@ -100,14 +100,11 @@ struct list
     struct list_elem tail;      /* List tail. */
   };
 
-/////////////////////
+/* Our implementation 
+   It removes a elem from a list.
+   Used to removed a elem from the wait_list, to push it to
+   the run_list. */
 void list_get (struct list_elem *);
-
-//////////////////
-
-
-
-
 
 /* Converts pointer to list element LIST_ELEM into a pointer to
    the structure that LIST_ELEM is embedded inside.  Supply the

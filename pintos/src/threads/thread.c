@@ -70,48 +70,42 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
+static void thread_sleep(int64_t);
 
 
-/////////////////////////////////
-
-void thread_sleep(int64_t ticks)
+/*
+  Add explanation of the function
+  -- 
+  
+*/
+static void
+thread_sleep(int64_t ticks)
 {
-  // printf("thread_sleep start\n");
+  /* Disable interruptions */
    enum intr_level old_level = intr_disable();
-   //printf("thread_sleep 1\n");
 
-   struct thread* t;
-   struct thread* t2;
+   /* Create a new thread and set it to current */
    struct list_elem* temp_elem;
-   //printf("thread_sleep 2\n");
-   t = thread_current();
-
-   //printf("thread_sleep 3\n");
-   //list_get(&(t->elem));
-   //temp_elem = list_pop_front (&ready_list);
-   
-   //printf("thread_sleep 4\n");
-
+   t = thread_current();  
+  
+   /* Push the current thread in the front of
+      waiting queue */
    list_push_front(&wait_list,&t->elem);
-   //t2 = list_entry (temp_elem, struct thread, elem);
-   //ASSERT(t == t2);
-   //printf("thread_sleep 5\n");
+
+   /* Set the start and end of each threads
+      to 0 and ticks respectively */
    t->start = 0;
-   //printf("thread_sleep 6\n");
    t->end = ticks;
-   //printf("thread_sleep 7\n");
-
+  
+   /* Block the current thread */
    t->status = THREAD_BLOCKED;
+
+   /* Call the scheduler */
    schedule();
+
+   /* Unblock the current threads */
    intr_set_level(old_level);
-   //printf("thread_sleep end\n");
 }
-
-
-
-
-////////////////////////////////
-
 
 /* Initializes the threading system by transforming the code
    that's currently running into a tahread.  This can not work in
