@@ -23,7 +23,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
+static struct list wait_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -71,6 +71,37 @@ static void schedule (void);
 void schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
 
+
+/////////////////////////////////
+
+void thread_sleep(int64_t ticks)
+{
+   printf("thread_sleep start\n");
+   enum intr_level old_level = intr_disable();
+   printf("thread_sleep 1\n");
+
+   struct thread* t;
+   printf("thread_sleep 2\n");
+   t = thread_current();
+   printf("thread_sleep 3\n");
+   list_get(&(t->elem));
+   printf("thread_sleep 4\n");
+   list_push_front(&wait_list,&(t->elem));
+   printf("thread_sleep 5\n");
+   t->start = 0;
+   printf("thread_sleep 6\n");
+   t->end = ticks;
+   printf("thread_sleep 7\n");
+   intr_set_level(old_level);
+   printf("thread_sleep end\n");
+}
+
+
+
+
+////////////////////////////////
+
+
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can not work in
    general and it is possible in this case only because loader.S
@@ -92,6 +123,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&wait_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -133,6 +165,21 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+
+  ASSERT (intr_get_level () == INTR_OFF);
+  struct list_elem *p;
+  for(p = list_begin(&wait_list);p != list_end(&wait_list); p = list_next(p))
+  {
+     t = list_entry(p,struct thread, elem);
+     t->start++;
+
+     if(t->start == t->end)
+     {
+         list_get(p);
+         list_push_back(&ready_list,p);
+     }
+
+  }
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)

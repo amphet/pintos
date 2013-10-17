@@ -5,6 +5,12 @@
 #include <list.h>
 #include <stdint.h>
 
+
+//////////////////////////
+
+void thread_sleep(int64_t ticks);
+
+////////////////////////
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -82,6 +88,12 @@ typedef int tid_t;
    blocked state is on a semaphore wait list. */
 struct thread
   {
+
+    //////////////////////////////////
+    int64_t start;
+    int64_t end;
+
+    //////////////////////////////
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
     enum thread_status status;          /* Thread state. */
