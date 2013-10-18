@@ -175,6 +175,7 @@ ASSERT (intr_get_level () == INTR_OFF);
 
   
   struct list_elem *p;
+  struct list_elem *p_temp;
   //printf("a");
 //  printf("tick!! %d  %d\n",list_begin(&wait_list), list_end(&wait_list));
   for(p = list_begin(&wait_list);p != list_end(&wait_list);p = list_next(p))
@@ -186,10 +187,11 @@ ASSERT (intr_get_level () == INTR_OFF);
 
      if(t->start == t->end)
      {
+         p_temp = list_prev(p);
          list_get(p);
          list_push_back(&ready_list,p);
-         t->status = THREAD_RUNNING;
-	 break;
+        	 t->status = THREAD_RUNNING;
+	 p = p_temp;
 
      }
 
