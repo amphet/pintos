@@ -70,7 +70,7 @@ static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void schedule_tail (struct thread *prev);
 static tid_t allocate_tid (void);
-static void thread_sleep(int64_t);
+void thread_sleep(int64_t);
 
 
 /*
@@ -78,14 +78,14 @@ static void thread_sleep(int64_t);
   -- 
   
 */
-static void
+void
 thread_sleep(int64_t ticks)
 {
   /* Disable interruptions */
    enum intr_level old_level = intr_disable();
 
    /* Create a new thread and set it to current */
-   struct list_elem* temp_elem;
+   struct thread* t;
    t = thread_current();  
   
    /* Push the current thread in the front of
