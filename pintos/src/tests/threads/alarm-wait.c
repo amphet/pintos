@@ -11,7 +11,7 @@
 #include "devices/timer.h"
 
 static void test_sleep (int thread_cnt, int iterations);
-
+static void test_priority(void);
 void
 test_alarm_single (void) 
 {
@@ -23,6 +23,7 @@ test_alarm_multiple (void)
 {
   test_sleep (5, 7);
 }
+
 
 /* Information about the test. */
 struct sleep_test 
@@ -45,6 +46,75 @@ struct sleep_thread
   };
 
 static void sleeper (void *);
+
+
+void
+test_function (void) 
+{
+  test_priority();
+}
+
+static void test_priority(void)
+{
+  int thread_cnt = 5;
+  int iterations = 5;
+
+
+  struct sleep_test test;
+  struct sleep_thread *threads;
+  int *output, *op;
+  int product;
+  int i;
+
+  /* This test does not work with the MLFQS. */
+  ASSERT (!thread_mlfqs);
+
+  msg ("Creating %d threads to sleep 1000 tick by %d time", thread_cnt, iterations);
+  msg ("Priority of Thread 0 is 1,");
+  msg ("Priority of thread 1 is 2, and so on.");
+ 
+  /* Allocate memory. */
+  threads = malloc (sizeof *threads * thread_cnt);
+  output = malloc (sizeof *output * iterations * thread_cnt * 2);
+  if (threads == NULL || output == NULL)
+    PANIC ("couldn't allocate memory for test");
+
+  /* Initialize test. */
+  test.start = timer_ticks () + 100;
+  test.iterations = iterations;
+  lock_init (&test.output_lock);
+  test.output_pos = output;
+
+  /* Start threads. */
+  ASSERT (output != NULL);
+  for (i = 0; i < thread_cnt; i++)
+    {
+      struct sleep_thread *t = threads + i;
+      char name[16];
+
+      t->test = &test;
+      t->id = i;
+      t->duration = 10000;//(i + 1) * 10;
+      t->iterations = 0;
+
+      snprintf (name, sizeof name, "thread %d", i);
+      thread_create (name, (i+1)*4, sleeper, t);
+    }
+  
+  /* Wait long enough for all the threads to finish. */
+ // timer_sleep (100 + thread_cnt * iterations * 1000 + 100);
+  timer_msleep(70000);
+
+  /* Acquire the output lock in case some rogue thread is still
+     running. */
+  lock_acquire (&test.output_lock);
+
+  lock_release (&test.output_lock);
+  thread_print_stats();
+  free (output);
+  free (threads);
+}
+
 
 /* Runs THREAD_CNT threads thread sleep ITERATIONS times each. */
 static void
@@ -145,7 +215,8 @@ sleeper (void *t_)
   for (i = 1; i <= test->iterations; i++) 
     {
       int64_t sleep_until = test->start + i * t->duration;
-      timer_sleep (sleep_until - timer_ticks ());
+      //timer_sleep (sleep_until - timer_ticks ());
+      timer_msleep(t->duration);
       lock_acquire (&test->output_lock);
       *test->output_pos++ = t->id;
       lock_release (&test->output_lock);

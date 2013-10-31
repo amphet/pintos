@@ -127,9 +127,12 @@ void enqueue_thread(struct thread *t)
 		 * We dont care about collisions. Nodes with
 		 * the same key stay together.
 		 */
-		if ( (t->weight_cnt * t2->weight_rev) < (t2->weight_cnt * t->weight_rev)) {
+		if ( (t->weight_cnt * t2->weight_rev < t2->weight_cnt * t->weight_rev) 
+                     || ((t->weight_cnt * t2->weight_rev == t2->weight_cnt * t->weight_rev) && (t->weight_rev > t2->weight_rev))) {
 			link = &parent->rb_left;
-		} else {
+		}
+
+                else {
 			link = &parent->rb_right;
 			leftmost = 0;
 		}
@@ -210,7 +213,7 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
- // list_init (&ready_list);
+  //list_init (&ready_list);
   tree_root.rb_node = NULL;
   rb_leftmost = NULL;
   list_init (&all_list);
@@ -258,13 +261,13 @@ ASSERT (intr_get_level () == INTR_OFF);
   else
     kernel_ticks++;
 
+  t->weight_cnt++;
 
   
   struct list_elem *p;
   struct list_elem *p_temp;
-  //printf("a");
-//  printf("tick!! %d  %d\n",list_begin(&wait_list), list_end(&wait_list));
-  for(p = list_begin(&wait_list);p != list_end(&wait_list);p = list_next(p))
+
+/*  for(p = list_begin(&wait_list);p != list_end(&wait_list);p = list_next(p))
   {
 
      t = list_entry(p,struct thread, elem);
@@ -283,14 +286,14 @@ ASSERT (intr_get_level () == INTR_OFF);
 
      }
 
-  }
+  }*/
 
 
   //modified for wfscheduler
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
   {
-    t->weight_cnt++;
+    //t->weight_cnt++;
     intr_yield_on_return ();
   }
  
@@ -404,7 +407,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
 
-  //list_push_back (&ready_list, &t->elem);
+ // list_push_back (&ready_list, &t->elem);
   enqueue_thread(t);
 
   t->status = THREAD_READY;
@@ -449,8 +452,13 @@ thread_tid (void)
 void
 thread_exit (void) 
 {
+  struct thread *t;
   ASSERT (!intr_context ());
-
+  intr_disable();
+  t = thread_current();
+  printf("thread dead!   thread name : %s   total runtime : %lld   priority : %d    weight_cnt : %lld\n"
+         ,t->name,t->total_runtime,t->weight_rev,t->weight_cnt);
+  intr_enable();
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -477,7 +485,8 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    enqueue_thread(cur);//list_push_back (&ready_list, &cur->elem);
+//    list_push_back (&ready_list, &cur->elem);
+    enqueue_thread(cur);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -570,7 +579,7 @@ idle (void *idle_started_ UNUSED)
       /* Re-enable interrupts and wait for the next one.
 
          The `sti' instruction disables interrupts until the
-         completion of the next instruction, so these two
+         completion of the nefxt instruction, so these two
          instructions are executed atomically.  This atomicity is
          important; otherwise, an interrupt could be handled
          between re-enabling interrupts and waiting for the next
@@ -635,6 +644,7 @@ init_thread (struct thread *t, const char *name, int priority)
   //for wfscheduler
   t->weight_rev = priority;
   t->weight_cnt = 1;
+  t->total_runtime =0;
   
   list_push_back (&all_list, &t->allelem);
 }
@@ -723,7 +733,7 @@ static void
 schedule (void) 
 {
   struct thread *cur = running_thread ();
-  struct thread *next = pick_next_thread();//next_thread_to_run ();
+  struct thread *next = pick_next_thread();//next_thread_to_run ();//
   struct thread *prev = NULL;
 
   ASSERT (intr_get_level () == INTR_OFF);

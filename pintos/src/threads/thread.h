@@ -100,6 +100,7 @@ struct thread
     int weight_rev; //initial value : priority
     int64_t weight_cnt; // increased 1 at each time slice
     struct rb_node run_node;   
+    int64_t total_runtime;
  
 
 
