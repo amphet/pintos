@@ -47,6 +47,7 @@ lib/kernel_SRC += lib/kernel/list.c	# Doubly-linked lists.
 lib/kernel_SRC += lib/kernel/bitmap.c	# Bitmaps.
 lib/kernel_SRC += lib/kernel/hash.c	# Hash tables.
 lib/kernel_SRC += lib/kernel/console.c	# printf(), putchar().
+lib/kernel_SRC += lib/kernel/rbtree.c   # Red-Black TREE /2013.10.28 hjh/
 
 # User process code.
 userprog_SRC  = userprog/process.c	# Process loading.

@@ -31,6 +31,7 @@ static struct list all_list;
 /* Idle thread. */
 static struct thread *idle_thread;
 
+
 /* Initial thread, the thread running init.c:main(). */
 static struct thread *initial_thread;
 
@@ -73,40 +74,117 @@ static tid_t allocate_tid (void);
 
 
 /////////////////////////////////
-
+//for wait queue
 void thread_sleep(int64_t ticks)
 {
-  // printf("thread_sleep start\n");
+
    enum intr_level old_level = intr_disable();
-   //printf("thread_sleep 1\n");
+
 
    struct thread* t;
-   struct thread* t2;
-   struct list_elem* temp_elem;
-   //printf("thread_sleep 2\n");
+  // struct thread* t2;
+//   struct list_elem* temp_elem;
+
    t = thread_current();
 
-   //printf("thread_sleep 3\n");
-   //list_get(&(t->elem));
-   //temp_elem = list_pop_front (&ready_list);
-   
-   //printf("thread_sleep 4\n");
 
    list_push_front(&wait_list,&t->elem);
-   //t2 = list_entry (temp_elem, struct thread, elem);
-   //ASSERT(t == t2);
-   //printf("thread_sleep 5\n");
    t->start = 0;
-   //printf("thread_sleep 6\n");
+
    t->end = ticks;
-   //printf("thread_sleep 7\n");
+
 
    t->status = THREAD_BLOCKED;
    schedule();
    intr_set_level(old_level);
-   //printf("thread_sleep end\n");
+
 }
 
+//for wf scheduler
+//modified from linux kernel sched_fair.c
+static struct rb_root tree_root;
+static struct rb_node* rb_leftmost;
+
+void enqueue_thread(struct thread *t)
+{
+	struct rb_node **link = &tree_root.rb_node;
+	struct rb_node *parent = NULL;
+        struct thread *t2;
+
+	//struct sched_entity *entry;
+	//s64 key = entity_key(cfs_rq, se);
+	int leftmost = 1;
+
+	/*
+	 * Find the right place in the rbtree:
+	 */
+	while (*link) {
+		parent = *link;
+                 t2 = rb_entry(parent, struct thread, run_node);
+
+		//entry = rb_entry(parent, struct sched_entity, run_node);
+		/*
+		 * We dont care about collisions. Nodes with
+		 * the same key stay together.
+		 */
+		if ( (t->weight_cnt * t2->weight_rev) < (t2->weight_cnt * t->weight_rev)) {
+			link = &parent->rb_left;
+		} else {
+			link = &parent->rb_right;
+			leftmost = 0;
+		}
+	}
+
+	/*
+	 * Maintain a cache of leftmost tree entries (it is frequently
+	 * used):
+	 */
+	if (leftmost)
+		rb_leftmost = &t->run_node;
+
+	rb_link_node(&t->run_node, parent, link);
+	rb_insert_color(&t->run_node, &tree_root);
+}
+
+void dequeue_thread(struct thread *t)//struct cfs_rq *cfs_rq, struct sched_entity *se)
+{
+	if (rb_leftmost == &t->run_node) {
+		struct rb_node *next_node;
+
+		next_node = rb_next(&t->run_node);
+		rb_leftmost = next_node;
+	}
+
+	rb_erase(&t->run_node, &tree_root);
+}
+
+
+struct thread * pick_next_thread()
+{
+/*
+if (list_empty (&ready_list))
+    return idle_thread;
+  else
+    return list_entry (list_pop_front (&ready_list), struct thread, elem);*/
+
+    struct thread *t;
+
+    if(RB_EMPTY_ROOT(&tree_root)){
+       return idle_thread;
+    }
+    else
+    {
+
+        struct rb_node *left = rb_leftmost;
+        if (!left)
+	    return idle_thread;
+        t = rb_entry(left, struct thread, run_node);
+
+        dequeue_thread( t );
+        return t;
+        //return rb_entry(left, struct thread, run_node);
+    }
+}
 
 
 
@@ -132,7 +210,9 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
-  list_init (&ready_list);
+ // list_init (&ready_list);
+  tree_root.rb_node = NULL;
+  rb_leftmost = NULL;
   list_init (&all_list);
   list_init (&wait_list);
 
@@ -195,17 +275,25 @@ ASSERT (intr_get_level () == INTR_OFF);
      {
          p_temp = list_prev(p);
          list_get(p);
-         list_push_back(&ready_list,p);
-        	 t->status = THREAD_RUNNING;
+         
+         //list_push_back(&ready_list,p);
+         enqueue_thread(t);
+         t->status = THREAD_RUNNING;
 	 p = p_temp;
 
      }
 
   }
 
+
+  //modified for wfscheduler
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
+  {
+    t->weight_cnt++;
     intr_yield_on_return ();
+  }
+ 
 }
 
 /* Prints thread statistics. */
@@ -308,13 +396,17 @@ thread_block (void)
 void
 thread_unblock (struct thread *t) 
 {
+
   enum intr_level old_level;
 
   ASSERT (is_thread (t));
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+
+  //list_push_back (&ready_list, &t->elem);
+  enqueue_thread(t);
+
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -385,7 +477,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-    list_push_back (&ready_list, &cur->elem);
+    enqueue_thread(cur);//list_push_back (&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
@@ -537,7 +629,13 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  
   t->magic = THREAD_MAGIC;
+
+  //for wfscheduler
+  t->weight_rev = priority;
+  t->weight_cnt = 1;
+  
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -625,7 +723,7 @@ static void
 schedule (void) 
 {
   struct thread *cur = running_thread ();
-  struct thread *next = next_thread_to_run ();
+  struct thread *next = pick_next_thread();//next_thread_to_run ();
   struct thread *prev = NULL;
 
   ASSERT (intr_get_level () == INTR_OFF);
