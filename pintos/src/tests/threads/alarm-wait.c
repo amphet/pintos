@@ -62,6 +62,7 @@ static void test_priority(void)
 
   struct sleep_test test;
   struct sleep_thread *threads;
+  struct thread *t;
   int *output, *op;
   int product;
   int i;
@@ -85,6 +86,10 @@ static void test_priority(void)
   lock_init (&test.output_lock);
   test.output_pos = output;
 
+  t = thread_current();
+
+  msg ("name : %s  tick : %lld",t->name ,t->weight_cnt);
+
   /* Start threads. */
   ASSERT (output != NULL);
   for (i = 0; i < thread_cnt; i++)
@@ -98,12 +103,16 @@ static void test_priority(void)
       t->iterations = 0;
 
       snprintf (name, sizeof name, "thread %d", i);
-      thread_create (name, (i+1)*4, sleeper, t);
+      msg ("thread start  :  %s  time : %lld", name, timer_ticks());
+      thread_create (name, PRI_DEFAULT, sleeper, t);
     }
   
   /* Wait long enough for all the threads to finish. */
  // timer_sleep (100 + thread_cnt * iterations * 1000 + 100);
-  timer_msleep(70000);
+  timer_sleep(100000);
+
+  msg ("name : %s  tick : %lld",t->name ,t->weight_cnt);
+
 
   /* Acquire the output lock in case some rogue thread is still
      running. */
@@ -215,8 +224,8 @@ sleeper (void *t_)
   for (i = 1; i <= test->iterations; i++) 
     {
       int64_t sleep_until = test->start + i * t->duration;
-      //timer_sleep (sleep_until - timer_ticks ());
-      timer_msleep(t->duration);
+      timer_sleep (sleep_until - timer_ticks ());
+      //timer_msleep(t->duration);
       lock_acquire (&test->output_lock);
       *test->output_pos++ = t->id;
       lock_release (&test->output_lock);

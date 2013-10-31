@@ -453,11 +453,10 @@ void
 thread_exit (void) 
 {
   struct thread *t;
-  ASSERT (!intr_context ());
   intr_disable();
   t = thread_current();
-  printf("thread dead!   thread name : %s   total runtime : %lld   priority : %d    weight_cnt : %lld\n"
-         ,t->name,t->total_runtime,t->weight_rev,t->weight_cnt);
+  printf("thread dead!   thread name : %s   total runtime : %lld   priority : %d    weight_cnt : %lld    time_tick : %lld\n"
+         ,t->name,t->total_runtime,t->weight_rev,t->weight_cnt,timer_tick());
   intr_enable();
 #ifdef USERPROG
   process_exit ();
