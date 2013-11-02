@@ -5,7 +5,19 @@ void run_test (const char *);
 
 typedef void test_func (void);
 
-extern test_func test_function;
+extern test_func test_fairness_equal_5;
+extern test_func test_fairness_equal_10;
+extern test_func test_fairness_equal_50;
+extern test_func test_fairness_skew_a;
+extern test_func test_fairness_skew_b;
+extern test_func test_fairness_skew_c;
+extern test_func test_fairness_skew_random;
+extern test_func test_efficiency_2;
+extern test_func test_efficiency_5;
+extern test_func test_efficiency_10;
+extern test_func test_efficiency_100;
+extern test_func test_efficiency_500;
+extern test_func test_efficiency_1000;
 extern test_func test_alarm_single;
 extern test_func test_alarm_multiple;
 extern test_func test_alarm_simultaneous;

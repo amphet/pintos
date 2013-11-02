@@ -8,9 +8,6 @@
 
 
 
-//////////////////////////
-
-void thread_sleep(int64_t ticks);
 
 ////////////////////////
 /* States in a thread's life cycle. */
@@ -101,6 +98,7 @@ struct thread
     int64_t weight_cnt; // increased 1 at each time slice
     struct rb_node run_node;   
     int64_t total_runtime;
+    uint32_t total_runtick; //using get_cycles();
  
 
 
@@ -125,6 +123,15 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
+
+//////////////////////////
+
+void thread_sleep(int64_t ticks);
+void enqueue_thread(struct thread *t);
+void dequeue_thread(struct thread *t);
+struct thread * pick_next_thread(void);
+extern bool bPrintThreadAfterDead;
+extern bool bPrintScheduleTime;
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.

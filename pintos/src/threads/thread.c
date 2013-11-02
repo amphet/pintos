@@ -59,6 +59,9 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+bool bPrintThreadAfterDead;
+bool bPrintScheduleTime;
+
 
 static void kernel_thread (thread_func *, void *aux);
 
@@ -82,8 +85,6 @@ void thread_sleep(int64_t ticks)
 
 
    struct thread* t;
-  // struct thread* t2;
-//   struct list_elem* temp_elem;
 
    t = thread_current();
 
@@ -102,11 +103,25 @@ void thread_sleep(int64_t ticks)
 
 //for wf scheduler
 //modified from linux kernel sched_fair.c
+
+
+static inline uint32_t get_cycles(void)
+{
+     uint32_t low,high;
+     
+     __asm__ __volatile__("rdtsc" : "=a"(low), "=d"(high));
+     return low;
+}
 static struct rb_root tree_root;
 static struct rb_node* rb_leftmost;
+static uint32_t consumed_by_schedule;
+static uint32_t prevtime_for_thread;// for struct thread->total_runtick( using get_cycles())
 
 void enqueue_thread(struct thread *t)
 {
+        
+
+
 	struct rb_node **link = &tree_root.rb_node;
 	struct rb_node *parent = NULL;
         struct thread *t2;
@@ -147,10 +162,15 @@ void enqueue_thread(struct thread *t)
 
 	rb_link_node(&t->run_node, parent, link);
 	rb_insert_color(&t->run_node, &tree_root);
+ 
+	
 }
 
 void dequeue_thread(struct thread *t)//struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
+	
+
+
 	if (rb_leftmost == &t->run_node) {
 		struct rb_node *next_node;
 
@@ -159,10 +179,12 @@ void dequeue_thread(struct thread *t)//struct cfs_rq *cfs_rq, struct sched_entit
 	}
 
 	rb_erase(&t->run_node, &tree_root);
+
+	
 }
 
 
-struct thread * pick_next_thread()
+struct thread * pick_next_thread(void)
 {
 /*
 if (list_empty (&ready_list))
@@ -170,9 +192,12 @@ if (list_empty (&ready_list))
   else
     return list_entry (list_pop_front (&ready_list), struct thread, elem);*/
 
+    //uint32_t prev_cycle = get_cycles();
+
     struct thread *t;
 
     if(RB_EMPTY_ROOT(&tree_root)){
+       //consumed_by_schedule += get_cycles() - prev_cycle;
        return idle_thread;
     }
     else
@@ -180,10 +205,15 @@ if (list_empty (&ready_list))
 
         struct rb_node *left = rb_leftmost;
         if (!left)
+        {
+           // consumed_by_schedule += get_cycles() - prev_cycle;
 	    return idle_thread;
+        }
+
         t = rb_entry(left, struct thread, run_node);
 
         dequeue_thread( t );
+        //consumed_by_schedule += get_cycles() - prev_cycle;
         return t;
         //return rb_entry(left, struct thread, run_node);
     }
@@ -213,9 +243,16 @@ thread_init (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
-  //list_init (&ready_list);
+  list_init (&ready_list);
   tree_root.rb_node = NULL;
   rb_leftmost = NULL;
+  consumed_by_schedule = 0;
+  prevtime_for_thread = 0;
+  bPrintThreadAfterDead = false;
+  bPrintScheduleTime = false;
+
+
+
   list_init (&all_list);
   list_init (&wait_list);
 
@@ -263,11 +300,19 @@ ASSERT (intr_get_level () == INTR_OFF);
 
   t->weight_cnt++;
 
-  
+  if(prevtime_for_thread == 0)
+	prevtime_for_thread = get_cycles();
+  else
+  {
+      t->total_runtick += get_cycles() - prevtime_for_thread;
+      prevtime_for_thread = get_cycles();
+
+  }
+  /*
   struct list_elem *p;
   struct list_elem *p_temp;
 
-/*  for(p = list_begin(&wait_list);p != list_end(&wait_list);p = list_next(p))
+  for(p = list_begin(&wait_list);p != list_end(&wait_list);p = list_next(p))
   {
 
      t = list_entry(p,struct thread, elem);
@@ -279,8 +324,8 @@ ASSERT (intr_get_level () == INTR_OFF);
          p_temp = list_prev(p);
          list_get(p);
          
-         //list_push_back(&ready_list,p);
-         enqueue_thread(t);
+         list_push_back(&ready_list,p);
+   //      enqueue_thread(t);
          t->status = THREAD_RUNNING;
 	 p = p_temp;
 
@@ -385,7 +430,10 @@ thread_block (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   thread_current ()->status = THREAD_BLOCKED;
+// uint32_t prev_cycle = get_cycles();
+
   schedule ();
+//consumed_by_schedule += get_cycles() - prev_cycle;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -407,7 +455,7 @@ thread_unblock (struct thread *t)
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
 
- // list_push_back (&ready_list, &t->elem);
+  //list_push_back (&ready_list, &t->elem);
   enqueue_thread(t);
 
   t->status = THREAD_READY;
@@ -455,8 +503,16 @@ thread_exit (void)
   struct thread *t;
   intr_disable();
   t = thread_current();
-  printf("thread dead!   thread name : %s   total runtime : %lld   priority : %d    weight_cnt : %lld    time_tick : %lld\n"
-         ,t->name,t->total_runtime,t->weight_rev,t->weight_cnt,timer_tick());
+  if(  bPrintThreadAfterDead){
+	long STE = t->weight_cnt*10000 - t->total_runtick;
+
+	printf("%s - prio : %d, VRT(tick) : %lld, REAL RT(cycle) : %lu, STE : %d\n"
+         ,t->name,t->weight_rev,t->weight_cnt, t->total_runtick, STE);
+  }
+
+  
+  if( (strcmp("main",t->name) ==0) && bPrintScheduleTime)
+    printf("total consumedbysched : %u\n",consumed_by_schedule);
   intr_enable();
 #ifdef USERPROG
   process_exit ();
@@ -468,7 +524,9 @@ thread_exit (void)
   intr_disable ();
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
+//uint32_t prev_cycle = get_cycles();
   schedule ();
+//consumed_by_schedule += get_cycles() - prev_cycle;
   NOT_REACHED ();
 }
 
@@ -484,10 +542,12 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (cur != idle_thread) 
-//    list_push_back (&ready_list, &cur->elem);
+   // list_push_back (&ready_list, &cur->elem);
     enqueue_thread(cur);
   cur->status = THREAD_READY;
+//uint32_t prev_cycle = get_cycles();
   schedule ();
+//consumed_by_schedule += get_cycles() - prev_cycle;
   intr_set_level (old_level);
 }
 
@@ -643,7 +703,8 @@ init_thread (struct thread *t, const char *name, int priority)
   //for wfscheduler
   t->weight_rev = priority;
   t->weight_cnt = 1;
-  t->total_runtime =0;
+  t->total_runtime=0;
+  t->total_runtick=0;
   
   list_push_back (&all_list, &t->allelem);
 }
@@ -731,8 +792,11 @@ schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
+ // printf("getcycle: %u\n",get_cycles());
+  uint32_t prev_cycle = get_cycles();
+ 
   struct thread *cur = running_thread ();
-  struct thread *next = pick_next_thread();//next_thread_to_run ();//
+  struct thread *next = pick_next_thread();//next_thread_to_run ();//;////
   struct thread *prev = NULL;
 
   ASSERT (intr_get_level () == INTR_OFF);
@@ -742,6 +806,10 @@ schedule (void)
   if (cur != next)
     prev = switch_threads (cur, next);
   schedule_tail (prev); 
+
+
+ 
+   consumed_by_schedule += get_cycles() - prev_cycle;
 }
 
 /* Returns a tid to use for a new thread. */
