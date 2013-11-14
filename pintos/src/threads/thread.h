@@ -3,13 +3,8 @@
 
 #include <debug.h>
 #include <list.h>
-#include <rbtree.h>
 #include <stdint.h>
 
-
-
-
-////////////////////////
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -25,7 +20,7 @@ typedef int tid_t;
 #define TID_ERROR ((tid_t) -1)          /* Error value for tid_t. */
 
 /* Thread priorities. */
-#define PRI_MIN 1                       /* Lowest priority. */
+#define PRI_MIN 0                       /* Lowest priority. */
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
@@ -87,26 +82,9 @@ typedef int tid_t;
    blocked state is on a semaphore wait list. */
 struct thread
   {
-
-    //////////////////////////////////
-    //for wait queue
-    int64_t start;
-    int64_t end;
-
-    //for wfscheduler
-    int weight_rev; //initial value : priority
-    int64_t weight_cnt; // increased 1 at each time slice
-    struct rb_node run_node;   
-    int64_t total_runtime;
-    uint32_t total_runtick; //using get_cycles();
- 
-
-
-
-    //////////////////////////////
     /* Owned by thread.c. */
     tid_t tid;                          /* Thread identifier. */
-    enum thread_status status;          /* Thread state */
+    enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
@@ -123,15 +101,6 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
   };
-
-//////////////////////////
-
-void thread_sleep(int64_t ticks);
-void enqueue_thread(struct thread *t);
-void dequeue_thread(struct thread *t);
-struct thread * pick_next_thread(void);
-extern bool bPrintThreadAfterDead;
-extern bool bPrintScheduleTime;
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -150,7 +119,7 @@ tid_t thread_create (const char *name, int priority, thread_func *, void *);
 void thread_block (void);
 void thread_unblock (struct thread *);
 
-extern struct thread *thread_current (void);
+struct thread *thread_current (void);
 tid_t thread_tid (void);
 const char *thread_name (void);
 

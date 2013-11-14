@@ -9,10 +9,9 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "devices/timer.h"
-#include "random.h"
 
 static void test_sleep (int thread_cnt, int iterations);
-static void test_prj3(int thread_num,int duration ,char mode, int pri1,int pri2, int pri3, int pri4, int pri5);
+
 void
 test_alarm_single (void) 
 {
@@ -24,7 +23,6 @@ test_alarm_multiple (void)
 {
   test_sleep (5, 7);
 }
-
 
 /* Information about the test. */
 struct sleep_test 
@@ -47,136 +45,6 @@ struct sleep_thread
   };
 
 static void sleeper (void *);
-
-#define EQUAL_PRIORITY 1
-#define SKEW_PRIORITY 2
-#define SKEW_RANDOM_PRIORITY 3
-#define TEST_EFFICIENCY 4
-
-void  test_fairness_equal_5(void){   test_prj3(5,1000 ,EQUAL_PRIORITY,0,0,0,0,0);   }
-void  test_fairness_equal_10(void){    test_prj3(10, 1000,EQUAL_PRIORITY,0,0,0,0,0);   }
-void  test_fairness_equal_50(void){    test_prj3(50,7500, EQUAL_PRIORITY,0,0,0,0,0);   }
-
-void  test_fairness_skew_a(void){      test_prj3(5,1000, SKEW_PRIORITY,2,4,6,8,10);   }
-void  test_fairness_skew_b(void){      test_prj3(5,1000, SKEW_PRIORITY,2,2,2,2,10);   }
-void  test_fairness_skew_c(void){      test_prj3(5,1000, SKEW_PRIORITY,6,6,6,6,30);   }
-void  test_fairness_skew_random(void){      test_prj3(5,1000, SKEW_RANDOM_PRIORITY,0,0,0,0,0);   }
-
-void test_efficiency_2(void){  test_prj3(2,10000,TEST_EFFICIENCY,0,0,0,0,0); }
-void test_efficiency_5(void){  test_prj3(5,10000,TEST_EFFICIENCY,0,0,0,0,0); }
-void test_efficiency_10(void){  test_prj3(10,10000,TEST_EFFICIENCY,0,0,0,0,0); }
-void test_efficiency_100(void){  test_prj3(100,10000,TEST_EFFICIENCY,0,0,0,0,0); }
-void test_efficiency_500(void){  test_prj3(500,10000,TEST_EFFICIENCY,0,0,0,0,0); }
-void test_efficiency_1000(void){  test_prj3(1000,10000,TEST_EFFICIENCY,0,0,0,0,0); }
-
-static inline uint32_t get_cycles(void)
-{
-     uint32_t low,high;
-     
-     __asm__ __volatile__("rdtsc" : "=a"(low), "=d"(high));
-     return low;
-}
-
-/*modified from test_sleep()*/
-static void test_prj3(int thread_num,int duration ,  char mode, int pri1,int pri2, int pri3, int pri4, int pri5)
-{
-  ///random_init((unsigned)get_cycles());
-  int thread_cnt = thread_num;
-  int iterations = 1;
-  
-  int priority_map[5];
-
-  if(mode == EQUAL_PRIORITY || mode == SKEW_PRIORITY || mode == SKEW_RANDOM_PRIORITY) bPrintThreadAfterDead = true;
-  else if (mode == TEST_EFFICIENCY) bPrintScheduleTime = true;
-  else fail("UNKNOWN TESTPROGRAM MODE");
-  
-
-  if(mode == SKEW_PRIORITY)
-  {
-     priority_map[0] = pri1;
-     priority_map[1] = pri2;
-     priority_map[2] = pri3;
-     priority_map[3] = pri4;
-     priority_map[4] = pri5;
-  }
-
-
-  struct sleep_test test;
-  struct sleep_thread *threads;
-  struct thread *t;
-  int *output, *op;
-  int product;
-  int i,finger;
-
-  /* This test does not work with the MLFQS. */
-  ASSERT (!thread_mlfqs);
- 
-  /* Allocate memory. */
-  threads = malloc (sizeof *threads * thread_cnt);
-  output = malloc (sizeof *output * iterations * thread_cnt * 2);
-  if (threads == NULL || output == NULL)
-    PANIC ("couldn't allocate memory for test");
-
-  /* Initialize test. */
-  test.start = timer_ticks () + 100;
-  test.iterations = iterations;
-  lock_init (&test.output_lock);
-  test.output_pos = output;
-
-  t = thread_current();
-
-  //msg ("name : %s  tick : %lld",t->name ,t->weight_cnt);
-
-  /* Start threads. */
-  finger = 0;
-  ASSERT (output != NULL);
-  for (i = 0; i < thread_cnt; i++)
-    {
-      struct sleep_thread *t = threads + i;
-      char name[16];
-
-      t->test = &test;
-      t->id = i;
-      t->duration = duration;
-      t->iterations = 0;
-
-      snprintf (name, sizeof name, "thread %d", i);
-      switch(mode){
-	case EQUAL_PRIORITY:
-		thread_create (name, PRI_DEFAULT, sleeper, t);
-		break;
-	case SKEW_PRIORITY:
-		thread_create (name, priority_map[finger], sleeper, t);
-		finger++;
-		break;
-	case TEST_EFFICIENCY:
-	case SKEW_RANDOM_PRIORITY:
-		thread_create (name, (random_ulong()%63)+1, sleeper, t);
-		break;
-	default:
-		 fail("UNKNOWN TESTPROGRAM MODE");
-     }
-		
-
-    }
-  
-  /* Wait long enough for all the threads to finish. */
- // timer_sleep (100 + thread_cnt * iterations * 1000 + 100);
-  timer_sleep(duration + duration/2);
-
- // msg ("name : %s  tick : %lld",t->name ,t->weight_cnt);
-
-
-  /* Acquire the output lock in case some rogue thread is still
-     running. */
-  lock_acquire (&test.output_lock);
-
-  lock_release (&test.output_lock);
-  thread_print_stats();
-  free (output);
-  free (threads);
-}
-
 
 /* Runs THREAD_CNT threads thread sleep ITERATIONS times each. */
 static void
@@ -261,7 +129,6 @@ test_sleep (int thread_cnt, int iterations)
             i, threads[i].iterations, iterations);
   
   lock_release (&test.output_lock);
-  thread_print_stats();
   free (output);
   free (threads);
 }
@@ -283,4 +150,3 @@ sleeper (void *t_)
       lock_release (&test->output_lock);
     }
 }
-

@@ -11,20 +11,6 @@ struct test
 
 static const struct test tests[] = 
   {
-  {"prj3-fairness-equal-5", test_fairness_equal_5},
- {"prj3-fairness-equal-10",test_fairness_equal_10},
- {"prj3-fairness-equal-50",test_fairness_equal_50},
- {"prj3-fairness-skew-a",test_fairness_skew_a},
- {"prj3-fairness-skew-b",test_fairness_skew_b},
- {"prj3-fairness-skew-c",test_fairness_skew_c},
- {"prj3-fairness-skew-random",test_fairness_skew_random},
- {"prj3-efficiency-2",test_efficiency_2},
-  {"prj3-efficiency-5",test_efficiency_5},
- {"prj3-efficiency-10",test_efficiency_10},
- {"prj3-efficiency-100",test_efficiency_100},
- {"prj3-efficiency-500",test_efficiency_500},
- {"prj3-efficiency-1000",test_efficiency_1000},
-
     {"alarm-single", test_alarm_single},
     {"alarm-multiple", test_alarm_multiple},
     {"alarm-simultaneous", test_alarm_simultaneous},

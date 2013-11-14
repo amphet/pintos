@@ -28,7 +28,7 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *file_name) 
 {
-  char *fn_copy;
+  char *fn_copy, *argv,*save_ptr;
   tid_t tid;
 
   /* Make a copy of "FILE_NAME".
@@ -37,34 +37,145 @@ process_execute (const char *file_name)
   if (fn_copy == NULL)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
+ 	
 
+
+	//hjh
+	argv = palloc_get_page (0);
+	if (argv == NULL)
+		return TID_ERROR;
+	strlcpy (argv, file_name, PGSIZE);// make copy of "(file name) (argv)"
+
+	strtok_r(fn_copy, " ",&save_ptr);//get (file name)
+
+	printf("fn_copy : %s\n",fn_copy);
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
-  if (tid == TID_ERROR)
+  tid = thread_create (fn_copy, PRI_DEFAULT, start_process, argv);//argv is"(file name) (argv)" 
+  if (tid == TID_ERROR){
     palloc_free_page (fn_copy); 
+	palloc_free_page(argv);
+	}
   return tid;
 }
 
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *cmdline_)
 {
-  char *file_name = file_name_;
+
+  char *file_name;
   struct intr_frame if_;
   bool success;
 
-  /* Initialize interrupt frame and load executable. */
-  memset (&if_, 0, sizeof if_);
-  if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
-  if_.cs = SEL_UCSEG;
-  if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+
+
+	// eg) cmdline_  = "echo asdf qwer zcxv"
+	char *token, *save_ptr;
+	bool startup=false;
+	char *address_map[128];
+	int argc = 0;
+	int tempbuf;
+
+	//file load & arguements parsing
+	for (token = strtok_r (cmdline_, " ", &save_ptr); token != NULL;token = strtok_r (NULL, " ", &save_ptr))
+	{
+		if(startup == true)
+		{
+		
+			address_map[argc] = token;
+			argc++;
+		
+			printf("%x : %s\n",(int)address_map[argc-1],address_map[argc-1]);
+		}
+		else
+		{
+			
+			 /* Initialize interrupt frame and load executable. */
+			 memset (&if_, 0, sizeof if_);
+			 if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
+			 if_.cs = SEL_UCSEG;
+			 if_.eflags = FLAG_IF | FLAG_MBS;
+			 success = load (token, &if_.eip, &if_.esp); // use tokenized filename here
+			startup = true;
+		}
+
+		if(success == false) break;
+		
+		
+	}
+
+	/*put arguments to stack
+	
+	eg) 
+	address_map
+	[0]	value : c011b005	ptr to :  "blah"
+	[1]	value : c011b00a	prt to :  "dfd"
+	[2]	value : c011b00e	prt to : "z"
+	
+	argc = 3;
+	*/
+
+	printf("before stack push esp : %x\n",(int)if_.esp);
+	int i;
+	for(i=argc-1;i>=0;i--)
+	{
+		if_.esp = ((char*)if_.esp) - strlen(address_map[i])-1;
+		memcpy(if_.esp,address_map[i] , strlen(address_map[i])+1);
+		address_map[i] = if_.esp;
+	}
+
+	printf("after stack push esp : %x\n",(int)if_.esp);
+	
+	//stack pointer alignment 
+	while(1)
+	{
+		if(((int)if_.esp)%4 == 0) break;
+		else
+		{
+			if_.esp = ((char*)if_.esp)-1;
+			memset(if_.esp,0,1);
+		}
+	}
+	
+	printf("after aligned : %x\n",(int)if_.esp);
+
+	//put argv* to stack
+	if_.esp = ((char*)if_.esp)-sizeof(char*);
+	memset(if_.esp,0,sizeof(char*));
+	
+	//argv[0,1,2...]
+	for(i=argc-1;i>=0;i--)
+	{
+		if_.esp = ((char*)if_.esp)-sizeof(char*);
+		memcpy(if_.esp,&(address_map[i]) ,sizeof(char*));
+		printf("address map [%d] : %x\n", i, address_map[i]);
+	}
+
+	tempbuf = if_.esp;
+	if_.esp = ((char*)if_.esp)-sizeof(char*);
+	memcpy(if_.esp,&tempbuf ,sizeof(char*));
+
+//	argc--;
+	if_.esp = ((char*)if_.esp)-sizeof(int);
+	memcpy(if_.esp,&argc ,sizeof(int));
+
+	if_.esp = ((char*)if_.esp)-sizeof(void(*)());
+	memset(if_.esp,0,sizeof(void(*)()));
+	
+//	if_.esp = ((char*)if_.esp);
+	printf("stack set end : %x\n",(int)if_.esp);
+	
+//hex_dump(-128,if_.esp,256,true);
+	
+
+
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
   if (!success) 
     thread_exit ();
+
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -304,7 +415,12 @@ load (const char *file_name, void (**eip) (void), void **esp)
   /* Set up stack. */
   if (!setup_stack (esp))
     goto done;
+  
+  
 
+  
+
+  
   /* Start address. */
   *eip = (void (*) (void)) ehdr.e_entry;
 
