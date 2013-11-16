@@ -470,6 +470,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   list_push_back (&all_list, &t->allelem);
+
+	/*implemented for project 4*/
+	sema_init(&t->sema,0);
+	t->new_fd=2;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
@@ -537,11 +541,16 @@ schedule_tail (struct thread *prev)
      thread.  This must happen late so that thread_exit() doesn't
      pull out the rug under itself.  (We dont free
      initial_thread because its memory was not obtained via
-     palloc().) */
+     palloc().) */  
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+
+      //palloc_free_page (prev);
+
+		/*implemented for project4*/;
+		// i'll call palloc_free_page(prev) in process_wait(process.c)
+		sema_up(&prev->sema);
     }
 }
 
@@ -585,3 +594,26 @@ allocate_tid (void)
 /* Offset of 'stack' member within 'thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+/*implemented for project4*/
+struct thread* thread_get_by_tid(tid_t tid)
+{
+	struct list_elem *e;
+	struct thread *t ;
+	enum intr_level old_level;
+	//ASSERT (intr_get_level () == INTR_OFF);
+	
+	old_level = intr_disable ();
+
+  	for (e = list_begin (&all_list); e != list_end (&all_list);e = list_next (e))
+    	{
+		t = list_entry (e, struct thread, allelem);
+		if(t->tid == tid)
+		{
+			  intr_set_level (old_level);
+			return t;
+		}
+		
+	}
+
+}

@@ -48,7 +48,7 @@ process_execute (const char *file_name)
 
 	strtok_r(fn_copy, " ",&save_ptr);//get (file name)
 
-	printf("fn_copy : %s\n",fn_copy);
+	//printf("fn_copy : %s\n",fn_copy);
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (fn_copy, PRI_DEFAULT, start_process, argv);//argv is"(file name) (argv)" 
   if (tid == TID_ERROR){
@@ -86,7 +86,7 @@ start_process (void *cmdline_)
 			address_map[argc] = token;
 			argc++;
 		
-			printf("%x : %s\n",(int)address_map[argc-1],address_map[argc-1]);
+			//printf("%x : %s\n",(int)address_map[argc-1],address_map[argc-1]);
 		}
 		else
 		{
@@ -97,6 +97,8 @@ start_process (void *cmdline_)
 			 if_.cs = SEL_UCSEG;
 			 if_.eflags = FLAG_IF | FLAG_MBS;
 			 success = load (token, &if_.eip, &if_.esp); // use tokenized filename here
+			address_map[argc] = token;
+			argc++;
 			startup = true;
 		}
 
@@ -116,7 +118,7 @@ start_process (void *cmdline_)
 	argc = 3;
 	*/
 
-	printf("before stack push esp : %x\n",(int)if_.esp);
+	//printf("before stack push esp : %x\n",(int)if_.esp);
 	int i;
 	for(i=argc-1;i>=0;i--)
 	{
@@ -125,7 +127,7 @@ start_process (void *cmdline_)
 		address_map[i] = if_.esp;
 	}
 
-	printf("after stack push esp : %x\n",(int)if_.esp);
+	//printf("after stack push esp : %x\n",(int)if_.esp);
 	
 	//stack pointer alignment 
 	while(1)
@@ -138,7 +140,7 @@ start_process (void *cmdline_)
 		}
 	}
 	
-	printf("after aligned : %x\n",(int)if_.esp);
+	//printf("after aligned : %x\n",(int)if_.esp);
 
 	//put argv* to stack
 	if_.esp = ((char*)if_.esp)-sizeof(char*);
@@ -149,7 +151,7 @@ start_process (void *cmdline_)
 	{
 		if_.esp = ((char*)if_.esp)-sizeof(char*);
 		memcpy(if_.esp,&(address_map[i]) ,sizeof(char*));
-		printf("address map [%d] : %x\n", i, address_map[i]);
+		//printf("address map [%d] : %x\n", i, address_map[i]);
 	}
 
 	tempbuf = if_.esp;
@@ -164,7 +166,7 @@ start_process (void *cmdline_)
 	memset(if_.esp,0,sizeof(void(*)()));
 	
 //	if_.esp = ((char*)if_.esp);
-	printf("stack set end : %x\n",(int)if_.esp);
+	//printf("stack set end : %x\n",(int)if_.esp);
 	
 //hex_dump(-128,if_.esp,256,true);
 	
@@ -199,6 +201,15 @@ start_process (void *cmdline_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
+	struct thread* t;
+	t = thread_get_by_tid(child_tid);
+
+	//printf("proccess_wait(%s) start!!!!\n",t->name);
+	
+	sema_down(&t->sema);
+	palloc_free_page (t);
+	//printf("proces wait() end!!!!\n");
+	
   return -1;
 }
 
@@ -575,7 +586,10 @@ install_page (void *upage, void *kpage, bool writable)
   struct thread *t = thread_current ();
 
   /* Verify that there's not already a page at that virtual
-     address, then map our page there. */
+     address, then map our pageint there. */
   return (pagedir_get_page (t->pagedir, upage) == NULL
           && pagedir_set_page (t->pagedir, upage, kpage, writable));
 }
+
+
+

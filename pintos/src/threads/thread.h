@@ -4,14 +4,15 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
-
+#include "threads/synch.h"
 /* States in a thread's life cycle. */
 enum thread_status
   {
     THREAD_RUNNING,     /* Running thread. */
     THREAD_READY,       /* Not running but ready to run. */
     THREAD_BLOCKED,     /* Waiting for an event to trigger. */
-    THREAD_DYING        /* About to be destroyed. */
+    THREAD_DYING   ,     /* About to be destroyed. */
+    THREAD_KILL	/*implemented for project4 -> about to be deleted by another process(i'll modify method later... current code is just simple test case*/
   };
 
 /* Thread identifier type.
@@ -96,6 +97,11 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+
+	/*implemented for project 4*/
+	struct semaphore sema;//use for process_wait??
+	struct file *open_file_table[128];//
+	int new_fd;//start from 2( 0,1 are assigned to stdin/out)
 #endif
 
     /* Owned by thread.c. */
@@ -137,5 +143,9 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+
+/*implemented project4*/
+struct thread* thread_get_by_tid(tid_t tid);
 
 #endif /* threads/thread.h */

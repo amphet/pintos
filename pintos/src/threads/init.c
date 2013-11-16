@@ -280,7 +280,7 @@ run_task (char **argv)
 {
   const char *task = argv[1];
   //printf("size of argv : %s\n",argv[0]);
-  //printf ("Executing '%s':\n", task);
+  printf ("Executing '%s':\n", task);
 #ifdef USERPROG
   process_wait (process_execute (task));
 #else
